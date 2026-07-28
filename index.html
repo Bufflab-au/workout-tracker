@@ -116,7 +116,7 @@ const DEFAULT_PROGRAMME = {
   "Pump A":[
     {name:"Overhead Cable Tricep Extension",target:"3×12",weight:"",note:"Long head focus — slow eccentric, full stretch, 2RIR"},
     {name:"EZ Bar Skull Crusher",target:"3×12",weight:"",note:"Control descent, stop 2 reps before failure"},
-    {name:"Cable Front Delt Raise",target:"3×15",weight:"5–7.5 kg",note:"Strict form, feel the front delt load — not momentum"},
+    {name:"Cable Front Delt Raise",target:"3×15",weight:"5–7.5 kg",note:"Strict form, feel the front delt — not momentum"},
     {name:"Barbell Wrist Curl",target:"3×20",weight:"",note:"Forearm flexors — full ROM, slow"},
     {name:"Barbell Behind Wrist Curl",target:"3×20",weight:"",note:"Forearm extensors — controlled, don't rush"},
   ],
@@ -174,7 +174,10 @@ const DAY_TYPE={"Push A":"Push","Pull A":"Pull","Legs A":"Legs","Pump A":"Pump",
 const DAY_COLOR={Push:"#1D9E75",Pull:"#378ADD",Legs:"#D85A30",Pump:"#9B59B6"};
 const SIBLING={"Push A":"Push B","Push B":"Push A","Pull A":"Pull B","Pull B":"Pull A","Legs A":"Legs B","Legs B":"Legs A","Pump A":"Pump B","Pump B":"Pump A"};
 
-let PROGRAMME=JSON.parse(localStorage.getItem("ppl_programme")||"null")||JSON.parse(JSON.stringify(DEFAULT_PROGRAMME));
+// Always merge saved programme with default to pick up new days
+const savedProg=JSON.parse(localStorage.getItem("ppl_programme")||"null");
+let PROGRAMME=savedProg?Object.assign(JSON.parse(JSON.stringify(DEFAULT_PROGRAMME)),savedProg):JSON.parse(JSON.stringify(DEFAULT_PROGRAMME));
+
 let sessions=JSON.parse(localStorage.getItem("ppl_sessions")||"[]");
 let currentSession=JSON.parse(localStorage.getItem("ppl_current")||"null");
 let view=currentSession?"session":"home";
@@ -258,6 +261,7 @@ function submitNewExercise(day){
   const weight=document.getElementById("new-weight").value.trim();
   const note=document.getElementById("new-note").value.trim();
   if(!name){alert("Exercise name is required.");return;}
+  if(!PROGRAMME[day])PROGRAMME[day]=[];
   PROGRAMME[day].push({name,target:target||"",weight:weight||"",note:note||""});
   saveProg();showAddPanel=null;render();
 }
@@ -302,7 +306,11 @@ function importData(){
         const fresh=data.sessions.filter(s=>!ids.has(s.id));
         sessions=[...sessions,...fresh].sort((a,b)=>new Date(b.date)-new Date(a.date));
         save();
-        if(data.programme&&confirm("Also restore programme from backup?")){PROGRAMME=data.programme;saveProg();}
+        if(data.programme&&confirm("Also restore programme from backup?")){
+          // Merge saved programme with default so Pump A/B are never lost
+          PROGRAMME=Object.assign(JSON.parse(JSON.stringify(DEFAULT_PROGRAMME)),data.programme);
+          saveProg();
+        }
         alert(`Done! ${fresh.length} new session(s) imported.`);render();
       }catch{alert("Could not read file.");}
     };
@@ -318,7 +326,7 @@ const views={
     const recent=sessions.slice(0,3).map(s=>`
       <div class="card row" style="justify-content:space-between">
         <div class="row" style="gap:10px">
-          <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[s.day]]}"></span>
+          <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[s.day]]||"#888"}"></span>
           <span style="font-weight:500;font-size:14px">${s.day}</span>
           <span style="font-size:12px;color:#888">${s.exercises.length} exercises</span>
         </div>
@@ -326,11 +334,12 @@ const views={
       </div>`).join("");
 
     const dayRows=DAYS.map(d=>{
-      const exList=editMode?(PROGRAMME[d]||[]).map((ex,i)=>`
+      const prog=PROGRAMME[d]||[];
+      const exList=editMode?prog.map((ex,i)=>`
         <div style="display:flex;align-items:center;gap:6px;padding:7px 0;border-bottom:1px solid #1a1a1a">
           <div style="display:flex;flex-direction:column;gap:2px;margin-right:2px">
             <button class="btn-icon" style="font-size:13px;line-height:1;opacity:${i===0?0.2:1}" onclick="moveExercise('${d}',${i},-1)" ${i===0?"disabled":""}>▲</button>
-            <button class="btn-icon" style="font-size:13px;line-height:1;opacity:${i===(PROGRAMME[d].length-1)?0.2:1}" onclick="moveExercise('${d}',${i},1)" ${i===(PROGRAMME[d].length-1)?"disabled":""}>▼</button>
+            <button class="btn-icon" style="font-size:13px;line-height:1;opacity:${i===prog.length-1?0.2:1}" onclick="moveExercise('${d}',${i},1)" ${i===prog.length-1?"disabled":""}>▼</button>
           </div>
           <span style="flex:1;font-size:13px">${ex.name}</span>
           <span class="tag">${ex.target}</span>
@@ -356,7 +365,7 @@ const views={
           <div class="row" style="gap:12px">
             <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[d]]}"></span>
             <span style="flex:1;font-weight:500">${d}</span>
-            <span style="font-size:11px;color:#888">${(PROGRAMME[d]||[]).length} exercises</span>
+            <span style="font-size:11px;color:#888">${prog.length} exercises</span>
           </div>
           <div style="margin-top:8px">${exList}</div>
           ${addForm}${addBtn}
@@ -364,7 +373,7 @@ const views={
         `<button class="btn" style="display:flex;align-items:center;gap:12px;padding:13px 16px;margin-bottom:8px" onclick="startSession('${d}')">
           <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[d]]}"></span>
           <span style="flex:1;font-weight:500">${d}</span>
-          <span style="font-size:11px;color:#888">${(PROGRAMME[d]||[]).length} exercises</span>
+          <span style="font-size:11px;color:#888">${prog.length} exercises</span>
           <span style="font-size:11px;color:#666">${sessions.filter(s=>s.day===d).length} logged</span>
         </button>`;
     }).join("");
@@ -387,7 +396,7 @@ const views={
           <p style="font-size:12px;color:#1D9E75;margin-bottom:6px;font-weight:500">Session in progress</p>
           <div class="row" style="justify-content:space-between">
             <div class="row" style="gap:8px">
-              <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[currentSession.day]]}"></span>
+              <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[currentSession.day]]||"#888"}"></span>
               <span style="font-weight:500">${currentSession.day}</span>
               <span style="font-size:12px;color:#888">${currentSession.exercises.length} exercises</span>
             </div>
@@ -515,7 +524,7 @@ const views={
       <div class="card">
         <div class="row" style="justify-content:space-between;margin-bottom:8px">
           <div class="row" style="gap:8px">
-            <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[s.day]||"Push"]}"></span>
+            <span class="dot" style="background:${DAY_COLOR[DAY_TYPE[s.day]]||"#888"}"></span>
             <span style="font-weight:500;font-size:14px">${s.day}</span>
           </div>
           <div class="row" style="gap:10px">
