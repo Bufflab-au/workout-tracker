@@ -258,12 +258,18 @@ function submitNewExercise(day){
 }
 
 // ── Session swap ───────────────────────────────────────────────────────────
+let _swapOptions=[];
 function openSwap(ei){swapIdx=ei;showCustomSwap=false;render();setTimeout(()=>{const el=document.getElementById("swap-panel-"+ei);if(el)el.scrollIntoView({behavior:"smooth",block:"center"});},50);}
 function closeSwap(){swapIdx=null;showCustomSwap=false;render();}
 function doSwap(ei,name,target,weight,note){
   const old=currentSession.exercises[ei];
   currentSession.exercises[ei]={...old,name,target:target||old.target,suggestedWeight:weight||old.suggestedWeight,programNote:note||"",sets:[{weight:"",reps:""}],note:""};
   saveCurrent();swapIdx=null;showCustomSwap=false;render();
+}
+function doSwapIdx(ei,si){
+  const p=_swapOptions[si];
+  if(!p)return;
+  doSwap(ei,p.name,p.target,p.weight,p.note||"");
 }
 function submitCustomSwap(ei){
   const name=document.getElementById("cswap-name").value.trim();
@@ -431,12 +437,13 @@ const views={
 
       const usedNames=s.exercises.map(e=>e.name);
       const swapOptions=dayProg.filter(p=>p.name!==ex.name&&!usedNames.includes(p.name));
+      if(swapIdx===ei)_swapOptions=swapOptions;
       const swapPanel=swapIdx===ei?`
         <div class="swap-panel" id="swap-panel-${ei}">
           <p>Swap "${ex.name}" — today only</p>
           <p style="font-size:11px;color:#555;margin-bottom:8px">Exercises from ${s.day} & ${siblingDay}</p>
           <div class="swap-grid">
-            ${swapOptions.map(p=>`<button class="btn btn-chip" onclick="doSwap(${ei},'${p.name.replace(/'/g,"\\'")}','${p.target}','${p.weight}','${p.note.replace(/'/g,"\\'")}'">${p.name}</button>`).join("")}
+            ${swapOptions.map((p,si)=>`<button class="btn btn-chip" onclick="doSwapIdx(${ei},${si})">${p.name}</button>`).join("")}
             <button class="btn btn-chip" style="border-color:#555;color:#ccc" onclick="showCustomSwap=true;render()">+ Custom</button>
           </div>
           ${showCustomSwap?`
